@@ -1,0 +1,639 @@
+---
+title: "Data 621 HW1"
+author: "Mikhail Groysman"
+date: "February 21, 2019"
+output:
+  bookdown::html_document2:
+    theme: cerulean
+    toc: true
+    toc_depth: 5
+    #code_folding: hide
+---
+
+#Data Exploration
+
+```{r, fig.height = 5, fig.width = 10}
+
+ourdata<-read.csv(file="C:/HW/moneyball-training-data.csv")
+
+# visual observation of top records
+
+head(ourdata)
+
+library(knitr)
+
+# mean/median/IQR/NA
+
+kable(summary(ourdata))
+
+```
+
+```{r}
+
+# histogram/density
+
+# near-normal
+
+par(mar=c(2,2,2,2))
+
+par(mfrow = c(2,2))
+
+hist(ourdata$TARGET_WINS)
+
+plot(density(ourdata$TARGET_WINS))
+
+# near-normal, long right-tail, potential outliers
+
+hist(ourdata$TEAM_BATTING_H)
+
+plot(density(ourdata$TEAM_BATTING_H))
+
+# near-normal, some weirdness around the mean
+
+hist(ourdata$TEAM_BATTING_2B)
+
+plot(density(ourdata$TEAM_BATTING_2B))
+
+# heavy right skewed, outliers(?)
+
+hist(ourdata$TEAM_BATTING_3B)
+
+plot(density(ourdata$TEAM_BATTING_3B))
+
+# looks very weird, does not look right, potentially needs to be dropped
+
+hist(ourdata$TEAM_BATTING_HR)
+
+plot(density(ourdata$TEAM_BATTING_HR))
+
+# left skewed, outliers(?)
+
+hist(ourdata$TEAM_BATTING_BB)
+
+plot(density(ourdata$TEAM_BATTING_BB))
+
+# weird, potentially to be dropped
+
+hist(ourdata$TEAM_BATTING_SO)
+
+plot(density(ourdata$TEAM_BATTING_SO,na.rm = TRUE))
+
+# right skewed, outliers(?)
+
+hist(ourdata$TEAM_BASERUN_SB)
+
+plot(density(ourdata$TEAM_BASERUN_SB,na.rm = TRUE))
+
+# right skewed, outliers(?)
+
+hist(ourdata$TEAM_BASERUN_CS)
+
+plot(density(ourdata$TEAM_BASERUN_CS,na.rm = TRUE))
+
+# right skewed, outliers(?)
+
+hist(ourdata$TEAM_FIELDING_E)
+
+plot(density(ourdata$TEAM_FIELDING_E,na.rm = TRUE))
+
+# near-normal, slightly left skewed
+
+hist(ourdata$TEAM_FIELDING_DP)
+
+plot(density(ourdata$TEAM_FIELDING_DP,na.rm = TRUE))
+
+# right skewed, outliers
+
+hist(ourdata$TEAM_PITCHING_BB)
+
+plot(density(ourdata$TEAM_PITCHING_BB,na.rm = TRUE))
+
+# severily right skewed, to be dropped(?)
+
+hist(ourdata$TEAM_PITCHING_H)
+
+plot(density(ourdata$TEAM_PITCHING_H,na.rm = TRUE))
+
+# weird, to be dropped(?)
+
+hist(ourdata$TEAM_PITCHING_HR)
+
+plot(density(ourdata$TEAM_PITCHING_HR,na.rm = TRUE))
+
+# severily right skewed, to be dropped(?)
+
+hist(ourdata$TEAM_PITCHING_SO)
+
+plot(density(ourdata$TEAM_PITCHING_SO,na.rm = TRUE))
+
+```
+
+
+
+
+
+
+```{r, fig.height = 12, fig.width = 20}
+
+pairs(ourdata)
+
+```
+
+
+```{r}
+
+cor(ourdata, use="pairwise.complete.obs", method="pearson") 
+
+```
+
+```{r}
+
+# very high correlation for Home Runs - very suspicious - looks wrong
+
+temp <- lm(TEAM_BATTING_HR~ TEAM_PITCHING_HR, data=ourdata)
+
+with(ourdata,plot(TEAM_PITCHING_HR,TEAM_BATTING_HR))
+
+abline(temp)
+
+```
+
+
+
+
+```{r}
+
+# some data is missing
+
+sum(ourdata$TEAM_BATTING_H)
+
+sum(ourdata$TEAM_PITCHING_H)
+
+sum(ourdata$TEAM_BATTING_BB)
+
+sum(ourdata$TEAM_PITCHING_BB)
+
+ourdata$losses<-162-ourdata$TARGET_WINS
+
+sum(ourdata$TARGET_WINS)
+
+sum(ourdata$losses)
+
+```
+
+
+
+Problems with the data
+
+1) Number of wins and number of losses is not the same, so we do not have complete data; which still could be ok for our analysis
+
+2) No strong correlations between dependent and independent variables
+
+3) TEAM_BATTING_HR and TEAM_PITCHING_HR are almost identical , correlation between them 93%. It does not make sense. Their distribution look very weird too. Possible we need to drop both variables.
+
+4) TEAM_PITCHING_H correlates positively, while it should have negative correlation. If we use the variable we need to explain why we use variable that is counter-intuitive.has a lot of outliers. Maximum value is 30,132 or 191 per game, which is not possible (heavily right skewed) It needs to be fixed or dropped.
+
+5) TEAM_BASERUN_CS correlates positively (actually close to zero), while it should have negative correlation. Right-skewed with potential outliers. If we use the variable we need to explain why we use variable that is counter-intuitive.
+
+6) TEAM_BASERUN_HBP has too much missing data. It needs to be dropped.
+
+7) TEAM_PITCHING_BB correlates positively, while it should have negative correlation. If we use the variable we need to explain why we use variable that is counter-intuitive.. It has a lot of outliers, which seem to skew the data. Maybe it could be used after we fix it. 
+
+8) TEAM_PITCHING_SO correlates negatively, while it should have positive correlation. If we use the variable we need to explain why we use variable that is counter-intuitive.. It has a lot of outliers, which seem to skew the data. Maybe it could be used after we fix it.
+
+9) TEAM_FIELDING_DP correlates negatively (close to zero), while it should have positive correlation. If we use the variable we need to explain why we use variable that is counter-intuitive. 
+
+10) Strikeout numbers both for Batting and Pitching look very low. Distributions look weird, skewed.
+
+
+#Data Preperation
+
+```{r, fixing NA data}
+
+# dropping bad variable
+
+ourdata$TEAM_BATTING_HBP<-NA
+
+# We will keep one dataset the way it is, and we will create a copy of it to manually adjust data
+
+ourdataM<-ourdata
+
+# dropping pitching Home Runs
+
+ourdataM$TEAM_PITCHING_HR<-NA
+
+# dropping outliers
+
+82-(92-71)*2
+
+82+(92-71)*2
+
+# 116 Wins was the maximum, so to use 124 as cut off is very conservative; https://www.mlb.com/news/most-mlb-wins-in-a-season/c-289159676
+
+# The minimum in more resent years was 40; http://writing.jmpressley.net/sports/worstseasons.html
+
+ourdataM<-ourdataM[!(ourdata$TARGET_WINS<40),]
+
+ourdataM<-ourdataM[!(ourdata$TARGET_WINS>124),]
+
+# I use 2018 data as reference; https://www.baseball-reference.com/leagues/MLB/2018.shtml
+
+1454-(1537-1383)*2
+
+1454+(1537-1383)*2
+
+ourdataM<-ourdataM[!(ourdataM$TEAM_BATTING_H<1146),]
+
+ourdataM<-ourdataM[!(ourdataM$TEAM_BATTING_H>1762),]
+
+238-(273-208)*2
+
+238+(273-208)*2
+
+ourdataM<-ourdataM[!(ourdataM$TEAM_BATTING_2B<108),]
+
+ourdataM<-ourdataM[!(ourdataM$TEAM_BATTING_2B>368),]
+
+47-(72-34)*2
+
+47+(72-34)*2
+
+ourdataM<-ourdataM[!(ourdataM$TEAM_BATTING_3B>123),]
+
+# Home Run historical data indicates 3 was the minumum ever; http://www.baseball-almanac.com/recbooks/rb_hr7.shtml
+
+ourdataM<-ourdataM[!(ourdataM$TEAM_BATTING_HR<3),]
+
+512-(580-451)*2
+
+512+(580-451)*2
+
+ourdataM<-ourdataM[!(ourdataM$TEAM_BATTING_BB<254),]
+
+ourdataM<-ourdataM[!(ourdataM$TEAM_BATTING_BB>770),]
+
+# TEAM_BATTING_SO is very inconsistent with the 2018 reference data; I would drop the variable
+
+ourdataM$TEAM_BATTING_SO<-NA
+
+101-(156-56)*2
+
+101+(156-56)*2
+
+ourdataM<-ourdataM[!(ourdata$TEAM_BASERUN_SB>301),]
+
+1518-(1682-1419)*2
+
+1518+(1682-1419)*2
+
+ourdataM<-ourdataM[!(ourdata$TEAM_PITCHING_H<992),]
+
+ourdataM<-ourdataM[!(ourdata$TEAM_PITCHING_H>2044),]
+
+536.5-(611-476)*2
+
+536.5+(611-476)*2
+
+ourdataM<-ourdataM[!(ourdataM$TEAM_PITCHING_BB<266),]
+
+ourdataM<-ourdataM[!(ourdataM$TEAM_PITCHING_BB>807),]
+
+813.5-(968-615)*2
+
+813.5+(968-615)*2
+
+ourdataM<-ourdataM[!(ourdataM$TEAM_PITCHING_SO<107),]
+
+ourdataM<-ourdataM[!(ourdataM$TEAM_PITCHING_SO>1520),]
+
+159-(249.2-127)*2
+
+159+(249.2-127)*2
+
+ourdataM<-ourdataM[!(ourdataM$TEAM_FIELDING_E>404),]
+
+149-(164-131)*2
+
+149+(164-131)*2
+
+ourdataM<-ourdataM[!(ourdataM$TEAM_FIELDING_DP>215),]
+
+ourdataM<-ourdataM[!(ourdataM$TEAM_FIELDING_DP<83),]
+
+ourdataM<-ourdataM[!is.na(ourdataM$INDEX),]
+
+summary(ourdataM)
+
+```
+
+```{r}
+
+# using median to impute missing values
+
+ourdataM$TEAM_PITCHING_SO[is.na(ourdataM$TEAM_PITCHING_SO)]<-827
+
+ourdataM$TEAM_BASERUN_SB[is.na(ourdataM$TEAM_BASERUN_SB)]<-92
+
+ourdataM$TEAM_FIELDING_DP[is.na(ourdataM$TEAM_FIELDING_DP)]<-151
+
+ourdataM$TEAM_BASERUN_CS[is.na(ourdataM$TEAM_BASERUN_CS)]<-50
+
+```
+
+```{r}
+
+cor(ourdataM$TARGET_WINS,ourdataM$TEAM_BASERUN_CS, method="pearson", use = "complete.obs")
+
+cor(ourdataM$TARGET_WINS,ourdataM$TEAM_PITCHING_H, method="pearson", use = "complete.obs")
+
+cor(ourdataM$TARGET_WINS,ourdataM$TEAM_PITCHING_BB, method="pearson", use = "complete.obs")
+
+cor(ourdataM$TARGET_WINS,ourdataM$TEAM_PITCHING_SO, method="pearson", use = "complete.obs")
+
+cor(ourdataM$TARGET_WINS,ourdataM$TEAM_FIELDING_DP, method="pearson", use = "complete.obs")
+
+
+```
+
+```{r}
+
+#For 4 variables correlation still does not make sense, corrupted variables; we will NA them
+
+ourdataM$TEAM_PITCHING_BB<-NA
+
+ourdataM$TEAM_PITCHING_H<-NA
+
+ourdataM$TEAM_PITCHING_SO<-NA
+
+ourdataM$TEAM_FIELDING_DP<-NA
+
+```
+
+```{r}
+
+head(ourdataM)
+
+```
+
+```{r}
+
+library(car)
+
+ourLM <- lm(TARGET_WINS~ TEAM_BATTING_H+TEAM_BATTING_2B+TEAM_BATTING_3B+TEAM_BATTING_BB+TEAM_BASERUN_CS+TEAM_BASERUN_SB+TEAM_FIELDING_E, data=ourdataM)
+
+summary(ourLM)
+
+
+```
+```{r}
+
+plot(cooks.distance(ourLM))
+
+plot(ourLM)
+
+```
+
+
+
+
+```{r}
+
+
+ourinf<-influence(ourLM)
+
+sum(ourinf$hat)
+
+```
+```{r}
+
+#install.packages("faraway")
+
+library(faraway)
+
+halfnorm(lm.influence(ourLM)$hat,labs=row.names(ourdataM),ylab="Leverages")
+
+```
+
+```{r}
+
+ourLMsum<-summary(ourLM)
+
+ourLMsum$sig
+
+stud<-residuals(ourLM)/(ourLMsum$sig*sqrt(1-ourinf$hat))
+
+qqnorm(stud)
+
+abline(0,1)
+
+```
+```{r}
+
+dim(ourdataM)
+
+jack<-rstudent(ourLM)
+
+jack[which.max(abs(jack))]
+
+# 2n/(n-1-p)
+
+qt(.05/(1421*2),1421-1-8)
+
+# no outliers
+
+```
+
+
+
+```{r}
+
+ourdataM[rownames(ourdataM)=='183'|rownames(ourdataM)=='1409',]<-NA
+
+ourdataM<-ourdataM[!is.na(ourdataM$TARGET_WINS),]
+
+```
+
+
+
+```{r}
+
+LMTBH <- lm(TARGET_WINS~ TEAM_BATTING_H, data=ourdataM)
+
+summary(LMTBH)
+
+with(ourdataM,plot(TEAM_BATTING_H,TARGET_WINS))
+ 
+abline(LMTBH)
+
+LMTBH_R = rstandard(LMTBH)
+
+plot(ourdataM$TEAM_BATTING_H, LMTBH_R, ylab="Standardized Residuals", xlab="BATTING HITS", main="WINS") 
+abline(0, 0)         
+
+```
+
+
+
+```{r}
+
+LMTB2B <- lm(TARGET_WINS~ TEAM_BATTING_2B, data=ourdataM)
+
+summary(LMTB2B)
+
+with(ourdataM,plot(TEAM_BATTING_2B,TARGET_WINS))
+abline(LMTB2B)
+
+LMTB2B_R = rstandard(LMTB2B)
+
+plot(ourdataM$TEAM_BATTING_2B, LMTB2B_R, ylab="Residuals", xlab="BATTING HITS 2 BASE", main="WINS") 
+abline(0, 0)  
+
+```
+
+
+
+```{r}
+
+# QUDRATIC ?
+
+LMTB3B <- lm(TARGET_WINS~ TEAM_BATTING_3B, data=ourdataM)
+
+summary(LMTB3B)
+
+with(ourdataM,plot(TEAM_BATTING_3B,TARGET_WINS))
+abline(LMTB3B)
+
+LMTB3B_R = rstandard(LMTB3B)
+
+plot(ourdataM$TEAM_BATTING_3B, LMTB3B_R, ylab="Residuals", xlab="BATTING HITS 3 BASE", main="WINS") 
+abline(0, 0)  
+
+```
+
+
+
+```{r}
+
+LMTBHR <- lm(TARGET_WINS~ TEAM_BATTING_HR, data=ourdataM)
+
+summary(LMTBHR)
+
+with(ourdataM,plot(TEAM_BATTING_HR,TARGET_WINS))
+abline(LMTBHR)
+
+LMTBHR_R = rstandard(LMTBHR)
+
+plot(ourdataM$TEAM_BATTING_HR, LMTBHR_R, ylab="Residuals", xlab="BATTING HITS HOME RUNS", main="WINS") 
+abline(0, 0) 
+
+```
+
+
+
+```{r}
+
+LMTBBB <- lm(TARGET_WINS~ TEAM_BATTING_BB, data=ourdataM)
+
+summary(LMTBBB)
+
+with(ourdataM,plot(TEAM_BATTING_BB,TARGET_WINS))
+abline(LMTBBB)
+
+LMTBBB_R = rstandard(LMTBBB)
+
+plot(ourdataM$TEAM_BATTING_BB, LMTBHR_R, ylab="Residuals", xlab="BATTING HITS HOME RUNS", main="WINS") 
+abline(0, 0) 
+
+```
+
+
+
+```{r}
+
+LMTBSB <- lm(TARGET_WINS~ TEAM_BASERUN_SB, data=ourdataM)
+
+summary(LMTBSB)
+
+with(ourdataM,plot(TEAM_BASERUN_SB,TARGET_WINS))
+abline(LMTBSB)
+
+LMTBSB_R = rstandard(LMTBSB)
+
+plot(ourdataM$TEAM_BASERUN_SB, LMTBSB_R, ylab="Residuals", xlab="BATTING SB RUNS", main="WINS") 
+abline(0, 0) 
+
+
+```
+
+
+
+```{r}
+
+LMTBFE <- lm(TARGET_WINS~ TEAM_FIELDING_E, data=ourdataM)
+
+summary(LMTBFE)
+
+with(ourdataM,plot(TEAM_FIELDING_E,TARGET_WINS))
+abline(LMTBFE)
+
+LMTBFE_R = rstandard(LMTBFE)
+
+plot(ourdataM$TEAM_FIELDING_E, LMTBFE_R, ylab="Residuals", xlab="FIELD ERRORS", main="WINS") 
+abline(0, 0) 
+
+head(ourdataM)
+
+```
+
+# Build Model
+
+
+```{r}
+
+powerTransform(cbind(ourdataM$TARGET_WINS,ourdataM$TEAM_BATTING_H,ourdataM$TEAM_BATTING_2B,ourdataM$TEAM_BATTING_3B,ourdataM$TEAM_BATTING_HR,ourdataM$TEAM_BATTING_BB,ourdataM$TEAM_BASERUN_CS,ourdataM$TEAM_BASERUN_SB,ourdataM$TEAM_FIELDING_E))
+
+```
+
+```{r}
+
+ourdataM$TARGET_WINS_BC<-ourdataM$TARGET_WINS^1.23
+
+ourdataM$TEAM_BATTING_H_BC<-ourdataM$TEAM_BATTING_H^0.26
+
+ourdataM$TEAM_BATTING_2B_BC<-ourdataM$TEAM_BATTING_2B^0.44
+
+ourdataM$TEAM_BATTING_3B_BC<-ourdataM$TEAM_BATTING_3B^0.34
+
+ourdataM$TEAM_BATTING_HR_BC<-ourdataM$TEAM_BATTING_HR^0.67
+
+ourdataM$TEAM_BATTING_BB_BC<-ourdataM$TEAM_BATTING_BB^0.68
+
+ourdataM$TEAM_BASERUN_CS_BC<-ourdataM$TEAM_BASERUN_CS^0.02
+
+ourdataM$TEAM_BASERUN_SB_BC<-ourdataM$TEAM_BASERUN_SB^0.17
+
+ourdataM$TEAM_FIELDING_E_BC<-ourdataM$TEAM_FIELDING_E^(-0.3)
+
+```
+
+
+```{r}
+
+ourLM_BC <- lm(TARGET_WINS_BC~ TEAM_BATTING_H_BC+TEAM_BATTING_2B_BC+TEAM_BATTING_3B_BC+TEAM_BATTING_HR_BC+TEAM_BATTING_BB_BC+TEAM_BASERUN_CS_BC+TEAM_BASERUN_SB_BC+TEAM_FIELDING_E_BC, data=ourdataM)
+
+summary(ourLM_BC)
+
+plot(ourLM_BC)
+
+```
+
+
+
+
+
+
+
+
+
+
+
